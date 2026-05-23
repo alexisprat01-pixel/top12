@@ -1,7 +1,5 @@
-"""Rounds page — displays all rounds with match cards and standings."""
+"""Rounds page — horizontal tab bar selects a single round; pool standings stay below."""
 from __future__ import annotations
-
-from typing import Callable
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -12,33 +10,39 @@ from PyQt6.QtWidgets import (
 from ..models import Match, Player, PlayerStanding
 from ..tournament import compute_standings
 from .match_card import MatchCard
+from .styles import GREY_DARK, GREY_LIGHT, RED, TEXT, TEXT_DIM
 
 
 class RoundsPage(QWidget):
-    """Shows the 5 pool rounds + 6 cross rounds."""
+    """One round at a time (selected via tabs) + pool standings always visible.
 
-    sets_saved = pyqtSignal(int, list)                     # match_id, set_scores
-    generate_cross_requested = pyqtSignal()                # user clicks "Générer phase finale"
+    session=1 → pool phase (rounds 1-5), shows the "generate finals" action button.
+    session=2 → cross phase (rounds 6-11).
+    Pool standings are rendered at the bottom in both sessions.
+    """
 
-    def __init__(self, parent: QWidget | None = None):
+    sets_saved = pyqtSignal(int, list)
+    generate_cross_requested = pyqtSignal()
+
+    def __init__(self, session: int = 1, parent: QWidget | None = None):
         super().__init__(parent)
+        self.session = session
         self._players: dict[int, Player] = {}
         self._matches: list[Match] = []
+        self._selected_round: int | None = None
         self._build()
 
+    # ----- Layout skeleton -----
     def _build(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
 
-        # Header bar with title + action button
         header = QHBoxLayout()
         header.setContentsMargins(32, 24, 32, 0)
-
-        self.title = QLabel("Phase de poules")
+        self.title = QLabel("")
         self.title.setObjectName("h1")
         header.addWidget(self.title)
         header.addStretch()
-
         self.action_btn = QPushButton("Générer la phase finale")
         self.action_btn.setVisible(False)
         self.action_btn.clicked.connect(self.generate_cross_requested.emit)
@@ -48,22 +52,37 @@ class RoundsPage(QWidget):
         self.subtitle = QLabel("")
         self.subtitle.setObjectName("muted")
         self.subtitle.setContentsMargins(32, 0, 32, 0)
+        self.subtitle.setWordWrap(True)
         outer.addWidget(self.subtitle)
 
-        # Scrollable content
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.content = QWidget()
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(32, 16, 32, 24)
         self.content_layout.setSpacing(12)
-        self.content_layout.addStretch()
         self.scroll.setWidget(self.content)
         outer.addWidget(self.scroll, 1)
 
+    # ----- Public API -----
     def set_data(self, players: list[Player], matches: list[Match]):
         self._players = {p.id: p for p in players}
         self._matches = matches
+        # Default selected round = first one available in this session.
+        rounds = self._available_rounds()
+        if rounds and self._selected_round not in rounds:
+            self._selected_round = rounds[0]
+        elif not rounds:
+            self._selected_round = None
+        self._render()
+
+    # ----- Internals -----
+    def _available_rounds(self) -> list[int]:
+        target_phase = "pool" if self.session == 1 else "cross"
+        return sorted({m.round_number for m in self._matches if m.phase == target_phase})
+
+    def _on_tab_clicked(self, round_num: int):
+        self._selected_round = round_num
         self._render()
 
     def _clear_layout(self):
@@ -75,100 +94,217 @@ class RoundsPage(QWidget):
 
     def _render(self):
         self._clear_layout()
+        self._render_header()
+        rounds = self._available_rounds()
+        if rounds:
+            self.content_layout.addWidget(self._build_tab_bar(rounds))
+            if self._selected_round in rounds:
+                self.content_layout.addWidget(self._build_round_card(self._selected_round))
+        # Bottom standings: pool side-by-side in Session 1, overall ranking in Session 2.
+        bottom = self._build_bottom_standings()
+        if bottom is not None:
+            self.content_layout.addWidget(bottom)
+        self.content_layout.addStretch()
 
+    def _render_header(self):
         pool_rounds = [m for m in self._matches if m.phase == "pool"]
         cross_rounds = [m for m in self._matches if m.phase == "cross"]
-
         pools_complete = bool(pool_rounds) and all(m.played for m in pool_rounds)
-        has_cross = bool(cross_rounds)
 
-        if has_cross:
-            self.title.setText("Tournoi Top12")
-            self.subtitle.setText("Phase de poules terminée. Phase finale en cours.")
-            self.action_btn.setVisible(False)
-        elif pools_complete:
-            self.title.setText("Phase de poules — terminée")
-            self.subtitle.setText("Tous les matchs des poules sont joués. Tu peux générer la phase finale.")
-            self.action_btn.setVisible(True)
+        if self.session == 1:
+            if not pool_rounds:
+                self.title.setText("Session 1 — Phase de poules")
+                self.subtitle.setText(
+                    "Les poules ne sont pas encore tirées. "
+                    "Va dans l'onglet \"Joueurs\" pour démarrer."
+                )
+                self.action_btn.setVisible(False)
+                return
+            if pools_complete and not cross_rounds:
+                self.title.setText("Session 1 — Phase de poules terminée")
+                self.subtitle.setText(
+                    "Tous les matchs de poule sont joués. "
+                    "Tu peux générer la Session 2 (phase finale)."
+                )
+                self.action_btn.setText("Générer la phase finale")
+                self.action_btn.setVisible(True)
+            elif cross_rounds:
+                self.title.setText("Session 1 — Phase de poules")
+                self.subtitle.setText("La Session 2 (phase finale) est déjà générée.")
+                self.action_btn.setVisible(False)
+            else:
+                self.title.setText("Session 1 — Phase de poules")
+                self.subtitle.setText(
+                    "Tours 1 à 5 — chaque joueur rencontre les 5 autres de sa poule."
+                )
+                self.action_btn.setVisible(False)
         else:
-            self.title.setText("Phase de poules")
-            self.subtitle.setText("Tours 1 à 5 — chaque joueur rencontre les 5 autres de sa poule.")
+            # Session 2
+            if not cross_rounds:
+                self.title.setText("Session 2 — Phase finale")
+                self.subtitle.setText(
+                    "La phase finale n'est pas encore générée. Termine la Session 1 "
+                    "et clique sur \"Générer la phase finale\"."
+                )
+                self.action_btn.setVisible(False)
+                return
+            self.title.setText("Session 2 — Phase finale")
+            self.subtitle.setText(
+                "Tours 6 à 11 — chaque joueur de la poule A affronte tous ceux de la "
+                "poule B. Le tour 11 oppose les joueurs de même rang."
+            )
             self.action_btn.setVisible(False)
 
-        # Render pool rounds 1..5
-        max_pool_round = max((m.round_number for m in pool_rounds), default=0)
-        for r in range(1, max_pool_round + 1):
-            self._add_round_header(f"Tour {r}", phase="pool")
-            round_matches = [m for m in pool_rounds if m.round_number == r]
-            # Group by pool for readability
+    # ----- Tab bar -----
+    def _build_tab_bar(self, rounds: list[int]) -> QFrame:
+        bar = QFrame()
+        bar.setStyleSheet(f"background-color:{GREY_DARK}; border-radius:6px;")
+        bl = QHBoxLayout(bar)
+        bl.setContentsMargins(6, 6, 6, 6)
+        bl.setSpacing(4)
+        for r in rounds:
+            active = (r == self._selected_round)
+            btn = QPushButton(f"Tour {r}")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            if active:
+                btn.setStyleSheet(
+                    f"background-color:{RED}; color:white; font-weight:bold; "
+                    "padding:8px 16px; border-radius:4px; border:none;"
+                )
+            else:
+                btn.setStyleSheet(
+                    f"background-color:transparent; color:{TEXT_DIM}; "
+                    "padding:8px 16px; border-radius:4px; border:none;"
+                )
+            btn.clicked.connect(lambda _checked=False, r=r: self._on_tab_clicked(r))
+            bl.addWidget(btn)
+        bl.addStretch()
+        return bar
+
+    # ----- Selected round content -----
+    def _build_round_card(self, round_num: int) -> QFrame:
+        round_matches = [
+            m for m in self._matches
+            if m.round_number == round_num
+            and m.phase == ("pool" if self.session == 1 else "cross")
+        ]
+
+        card = QFrame()
+        card.setObjectName("card")
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(16, 12, 16, 14)
+        cl.setSpacing(8)
+
+        # Header row: title + "X / N joués" badge
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        title_text = f"Tour {round_num}"
+        if round_num == 11:
+            title_text += "  —  finale par rang"
+        head_title = QLabel(title_text)
+        head_title.setStyleSheet(
+            f"color:{TEXT}; font-size:14pt; font-weight:bold; background:transparent;"
+        )
+        head.addWidget(head_title)
+        head.addStretch()
+        played = sum(1 for m in round_matches if m.played)
+        status = QLabel(f"{played} / {len(round_matches)} joués")
+        status.setStyleSheet(
+            f"color:{TEXT_DIM}; font-size:9pt; background:transparent;"
+        )
+        head.addWidget(status)
+        head_w = QWidget()
+        head_w.setLayout(head)
+        head_w.setStyleSheet("background:transparent;")
+        cl.addWidget(head_w)
+
+        # Matches
+        if self.session == 1:
             for pool in ("A", "B"):
                 pool_matches = [m for m in round_matches if m.pool == pool]
                 if pool_matches:
-                    self._add_subheader(f"Poule {pool}")
+                    sub = QLabel(f"Poule {pool}")
+                    sub.setStyleSheet(
+                        f"color:{TEXT_DIM}; font-weight:bold; padding-top:4px; "
+                        "background:transparent;"
+                    )
+                    cl.addWidget(sub)
                     for m in pool_matches:
-                        self._add_match(m)
+                        cl.addWidget(self._make_match_card(m))
+        else:
+            for m in round_matches:
+                cl.addWidget(self._make_match_card(m))
 
-        # Intermediate / final standings
-        if pool_rounds:
-            self._add_round_header("Classement des poules", phase="ranking")
-            standings_box = QHBoxLayout()
-            for pool in ("A", "B"):
-                box = QVBoxLayout()
-                lbl = QLabel(f"Poule {pool}")
-                lbl.setObjectName("h2")
-                box.addWidget(lbl)
-                box.addWidget(self._standings_table(
-                    compute_standings(self._players.values(), self._matches, pool=pool, max_round=5)
-                ))
-                container = QWidget()
-                container.setLayout(box)
-                standings_box.addWidget(container)
-            wrap = QWidget()
-            wrap.setLayout(standings_box)
-            self.content_layout.addWidget(wrap)
+        return card
 
-        # Cross rounds 6..11
-        if cross_rounds:
-            max_cross_round = max(m.round_number for m in cross_rounds)
-            for r in range(6, max_cross_round + 1):
-                label = f"Tour {r}"
-                if r == 11:
-                    label += "  —  finale par rang"
-                self._add_round_header(label, phase="cross")
-                round_matches = [m for m in cross_rounds if m.round_number == r]
-                for m in round_matches:
-                    self._add_match(m)
-
-        # Final standings if all matches played
-        if self._matches and all(m.played for m in self._matches):
-            self._add_round_header("Classement final", phase="final")
-            self.content_layout.addWidget(self._standings_table(
-                compute_standings(self._players.values(), self._matches)
-            ))
-
-        self.content_layout.addStretch()
-
-    def _add_round_header(self, text: str, phase: str):
-        lbl = QLabel(text)
-        lbl.setObjectName("h2")
-        self.content_layout.addWidget(lbl)
-
-    def _add_subheader(self, text: str):
-        lbl = QLabel(text)
-        lbl.setStyleSheet("color:#B4B4B8; font-weight:bold; padding-top:4px;")
-        self.content_layout.addWidget(lbl)
-
-    def _add_match(self, m: Match):
+    def _make_match_card(self, m: Match) -> QWidget:
         p1 = self._players.get(m.player1_id)
         p2 = self._players.get(m.player2_id)
         if p1 is None or p2 is None:
-            return
+            placeholder = QLabel("Match invalide")
+            return placeholder
         referee = self._players.get(m.referee_id) if m.referee_id else None
         card = MatchCard(m, p1, p2, referee=referee)
         card.sets_saved.connect(self.sets_saved.emit)
-        self.content_layout.addWidget(card)
+        return card
 
-    def _standings_table(self, standings: list[PlayerStanding]) -> QTableWidget:
+    # ----- Bottom standings (pool side-by-side OR overall) -----
+    def _build_bottom_standings(self) -> QWidget | None:
+        if self.session == 2:
+            return self._build_general_standings()
+        if not any(m.phase == "pool" for m in self._matches):
+            return None
+        return self._build_pool_standings()
+
+    def _build_general_standings(self) -> QWidget | None:
+        if not self._matches:
+            return None
+        wrapper = QWidget()
+        v = QVBoxLayout(wrapper)
+        v.setContentsMargins(0, 8, 0, 0)
+        v.setSpacing(8)
+        header = QLabel("Classement général")
+        header.setObjectName("h2")
+        v.addWidget(header)
+        standings = compute_standings(self._players.values(), self._matches)
+        v.addWidget(self._standings_table(standings))
+        return wrapper
+
+    # ----- Pool standings (Session 1) -----
+    def _build_pool_standings(self) -> QWidget:
+        wrapper = QWidget()
+        v = QVBoxLayout(wrapper)
+        v.setContentsMargins(0, 8, 0, 0)
+        v.setSpacing(8)
+
+        header = QLabel("Classement des poules")
+        header.setObjectName("h2")
+        v.addWidget(header)
+
+        row = QHBoxLayout()
+        for pool in ("A", "B"):
+            box = QVBoxLayout()
+            lbl = QLabel(f"Poule {pool}")
+            lbl.setObjectName("h2")
+            box.addWidget(lbl)
+            box.addWidget(self._standings_table(
+                compute_standings(
+                    self._players.values(),
+                    self._matches,
+                    pool=pool,
+                    max_round=5,
+                )
+            ))
+            cnt = QWidget()
+            cnt.setLayout(box)
+            row.addWidget(cnt)
+        row_w = QWidget()
+        row_w.setLayout(row)
+        v.addWidget(row_w)
+        return wrapper
+
+    @staticmethod
+    def _standings_table(standings: list[PlayerStanding]) -> QTableWidget:
         table = QTableWidget(len(standings), 6)
         table.setHorizontalHeaderLabels(["#", "Joueur", "J", "V", "Pts", "Diff sets"])
         table.verticalHeader().setVisible(False)

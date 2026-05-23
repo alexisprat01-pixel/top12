@@ -19,9 +19,11 @@ from ..tournament import (
     group_matches_into_sessions, split_into_pools,
 )
 from .dialogs import confirm
+from .general_ranking_page import GeneralRankingPage
 from .home_page import HomePage
 from .player_page import PlayerPage
 from .rounds_page import RoundsPage
+from .statistics_page import StatisticsPage
 from .styles import (
     BLACK, GREY, GREY_DARK, GREY_LIGHT, RED, STYLESHEET, TEXT, TEXT_DIM,
 )
@@ -45,7 +47,10 @@ class MainWindow(QMainWindow):
         self.db = db
         self._current_tournament: Tournament | None = None
         self._player_page: PlayerPage | None = None
-        self._rounds_page: RoundsPage | None = None
+        self._session1_page: RoundsPage | None = None
+        self._session2_page: RoundsPage | None = None
+        self._general_page: GeneralRankingPage | None = None
+        self._stats_page: StatisticsPage | None = None
 
         self.setWindowTitle("Top12 — Gestion de tournoi")
         self.setMinimumSize(1100, 720)
@@ -126,9 +131,15 @@ class MainWindow(QMainWindow):
         self.nav_group = QButtonGroup(self)
         self.nav_group.setExclusive(True)
         self.btn_players = self._nav_button("Joueurs", 1)
-        self.btn_rounds = self._nav_button("Tours & matchs", 2)
+        self.btn_session1 = self._nav_button("Session 1", 2)
+        self.btn_session2 = self._nav_button("Session 2", 3)
+        self.btn_general = self._nav_button("Classement général", 4)
+        self.btn_stats = self._nav_button("Statistiques", 5)
         ns.addWidget(self.btn_players)
-        ns.addWidget(self.btn_rounds)
+        ns.addWidget(self.btn_session1)
+        ns.addWidget(self.btn_session2)
+        ns.addWidget(self.btn_general)
+        ns.addWidget(self.btn_stats)
         sb.addWidget(self.nav_section)
         self._nav_hr = self._hline()
         sb.addWidget(self._nav_hr)
@@ -166,8 +177,11 @@ class MainWindow(QMainWindow):
         self.home_page = HomePage(self.db)
         self.home_page.open_requested.connect(self._open_tournament)
         self.stack.addWidget(self.home_page)
-        self.stack.addWidget(QWidget())  # placeholder players (1)
-        self.stack.addWidget(QWidget())  # placeholder rounds (2)
+        self.stack.addWidget(QWidget())  # placeholder players  (1)
+        self.stack.addWidget(QWidget())  # placeholder session1 (2)
+        self.stack.addWidget(QWidget())  # placeholder session2 (3)
+        self.stack.addWidget(QWidget())  # placeholder general  (4)
+        self.stack.addWidget(QWidget())  # placeholder stats    (5)
         layout.addWidget(self.stack, 1)
         self.setCentralWidget(central)
 
@@ -231,7 +245,7 @@ class MainWindow(QMainWindow):
         # Default page depending on tournament state
         matches = self.db.list_matches(t.id)
         if matches:
-            self.btn_rounds.setChecked(True)
+            self.btn_session1.setChecked(True)
             self.stack.setCurrentIndex(2)
         else:
             self.btn_players.setChecked(True)
@@ -314,12 +328,12 @@ class MainWindow(QMainWindow):
         return "En cours"
 
     def _mount_tournament_pages(self):
-        """Build fresh player + rounds pages for the current tournament."""
+        """Build fresh pages for the current tournament (players + 2 sessions + general)."""
         assert self._current_tournament is not None
         t = self._current_tournament
 
-        # Replace placeholders / previous pages at indexes 1 and 2
-        for idx in (2, 1):
+        # Replace placeholders at indexes 1..5 (reverse order to keep indexes stable).
+        for idx in (5, 4, 3, 2, 1):
             w = self.stack.widget(idx)
             self.stack.removeWidget(w)
             w.deleteLater()
@@ -328,10 +342,20 @@ class MainWindow(QMainWindow):
         self._player_page.pools_drawn.connect(self._on_pools_drawn)
         self.stack.insertWidget(1, self._player_page)
 
-        self._rounds_page = RoundsPage()
-        self._rounds_page.sets_saved.connect(self._on_sets_saved)
-        self._rounds_page.generate_cross_requested.connect(self._on_generate_cross)
-        self.stack.insertWidget(2, self._rounds_page)
+        self._session1_page = RoundsPage(session=1)
+        self._session1_page.sets_saved.connect(self._on_sets_saved)
+        self._session1_page.generate_cross_requested.connect(self._on_generate_cross)
+        self.stack.insertWidget(2, self._session1_page)
+
+        self._session2_page = RoundsPage(session=2)
+        self._session2_page.sets_saved.connect(self._on_sets_saved)
+        self.stack.insertWidget(3, self._session2_page)
+
+        self._general_page = GeneralRankingPage()
+        self.stack.insertWidget(4, self._general_page)
+
+        self._stats_page = StatisticsPage()
+        self.stack.insertWidget(5, self._stats_page)
 
         players = self.db.list_players(t.id)
         matches = self.db.list_matches(t.id)
@@ -341,7 +365,10 @@ class MainWindow(QMainWindow):
             has_pools=bool(matches),
             has_played_matches=any(m.played for m in matches),
         )
-        self._rounds_page.set_data(players, matches)
+        self._session1_page.set_data(players, matches)
+        self._session2_page.set_data(players, matches)
+        self._general_page.set_data(players, matches)
+        self._stats_page.set_data(players, matches)
 
     # ----- Tournament actions -----
     def _on_pools_drawn(self, players_data: list[tuple[str, int]]):
@@ -371,9 +398,15 @@ class MainWindow(QMainWindow):
                 has_pools=bool(all_matches),
                 has_played_matches=any(m.played for m in all_matches),
             )
-        if self._rounds_page:
-            self._rounds_page.set_data(all_players, all_matches)
-        self.btn_rounds.setChecked(True)
+        if self._session1_page:
+            self._session1_page.set_data(all_players, all_matches)
+        if self._session2_page:
+            self._session2_page.set_data(all_players, all_matches)
+        if self._general_page:
+            self._general_page.set_data(all_players, all_matches)
+        if self._stats_page:
+            self._stats_page.set_data(all_players, all_matches)
+        self.btn_session1.setChecked(True)
         self.stack.setCurrentIndex(2)
         self._update_context_label()
 
@@ -385,7 +418,14 @@ class MainWindow(QMainWindow):
         tid = self._current_tournament.id
         players = self.db.list_players(tid)
         matches = self.db.list_matches(tid)
-        self._rounds_page.set_data(players, matches)
+        if self._session1_page is not None:
+            self._session1_page.set_data(players, matches)
+        if self._session2_page is not None:
+            self._session2_page.set_data(players, matches)
+        if self._general_page is not None:
+            self._general_page.set_data(players, matches)
+        if self._stats_page is not None:
+            self._stats_page.set_data(players, matches)
         # As soon as one score is recorded, the player list is locked.
         if self._player_page is not None:
             self._player_page.set_state(
@@ -411,7 +451,9 @@ class MainWindow(QMainWindow):
         if any(m.phase == "cross" for m in matches):
             if not confirm(
                 self, "Régénérer la phase finale",
-                "La phase finale existe déjà. La régénérer effacera les scores des tours 6 à 11. Continuer ?",
+                "La phase finale existe déjà. La régénérer effacera les scores des tours 6 à 11, "
+                "et recalculera aussi les tables / arbitres des matchs de poule "
+                "(les scores des poules sont préservés). Continuer ?",
                 default_yes=False,
             ):
                 return
@@ -421,15 +463,32 @@ class MainWindow(QMainWindow):
         pool_b_ranked = [s.player for s in compute_standings(players, matches, pool="B", max_round=5)]
 
         cross = build_cross_rounds(pool_a_ranked, pool_b_ranked)
-        # Continue the assignment counters from the pool phase so the equity
-        # constraint applies across the whole tournament.
-        player_ids = [p.id for p in players]
-        table_counts, ref_counts = collect_assignment_counts(
-            [m for m in matches if m.phase == "pool"], player_ids
-        )
-        assign_tables_and_referees(cross, player_ids, table_counts, ref_counts)
         self.db.insert_matches(tid, cross)
-        self._rounds_page.set_data(self.db.list_players(tid), self.db.list_matches(tid))
+
+        # Co-optimise table & referee assignments across the whole tournament:
+        # reset everything in memory, run the algo on the full match list, then persist.
+        # Scores / played flag are stored separately and are untouched.
+        all_matches = self.db.list_matches(tid)
+        for m in all_matches:
+            m.table_number = 0
+            m.referee_id = 0
+        player_ids = [p.id for p in players]
+        assign_tables_and_referees(all_matches, player_ids)
+        for m in all_matches:
+            self.db.update_match_assignment(m.id, m.table_number, m.referee_id)
+        all_players = self.db.list_players(tid)
+        all_matches = self.db.list_matches(tid)
+        if self._session1_page:
+            self._session1_page.set_data(all_players, all_matches)
+        if self._session2_page:
+            self._session2_page.set_data(all_players, all_matches)
+        if self._general_page:
+            self._general_page.set_data(all_players, all_matches)
+        if self._stats_page:
+            self._stats_page.set_data(all_players, all_matches)
+        # Jump straight to Session 2 so the user can see the freshly generated matches.
+        self.btn_session2.setChecked(True)
+        self.stack.setCurrentIndex(3)
         self._update_context_label()
 
     def _on_edit_meta(self):

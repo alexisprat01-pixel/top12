@@ -162,12 +162,141 @@ def assign_tables_and_referees(
     Matches that already have a non-zero `table_number` are left untouched
     (this lets us re-run the algorithm without disturbing played matches).
     Their counts must already be present in `table_counts` / `ref_counts`.
+
+    The table assignment uses a greedy first pass followed by an iterative
+    local-search refinement (per-session 2-opt and pair-of-sessions 3-opt)
+    so the final per-player spread reaches the mathematical optimum.
     """
     if table_counts is None or ref_counts is None:
         table_counts, ref_counts = _initial_counts(player_ids)
-    for session in group_matches_into_sessions(matches):
+    sessions = group_matches_into_sessions(matches)
+    for session in sessions:
         _assign_session(session, table_counts, ref_counts, player_ids)
+    _refine_table_assignment(sessions, table_counts, player_ids)
     return matches
+
+
+def _global_spread(table_counts: dict, player_ids: list[int]) -> int:
+    return sum(
+        max(table_counts[p].values()) - min(table_counts[p].values())
+        for p in player_ids
+    )
+
+
+def _apply_perm(session: list[Match], current: list[int], target: list[int],
+                table_counts: dict, commit: bool):
+    """Move counts from `current` to `target` for the matches in `session`.
+    If `commit` is True, also update each match's table_number."""
+    for m, old_t, new_t in zip(session, current, target):
+        if old_t == new_t:
+            continue
+        table_counts[m.player1_id][old_t] -= 1
+        table_counts[m.player2_id][old_t] -= 1
+        table_counts[m.player1_id][new_t] += 1
+        table_counts[m.player2_id][new_t] += 1
+        if commit:
+            m.table_number = new_t
+
+
+def _refine_table_assignment(
+    sessions: list[list[Match]],
+    table_counts: dict,
+    player_ids: list[int],
+    max_outer_iters: int = 50,
+) -> None:
+    """Iteratively improve table assignments to minimise the per-player spread.
+
+    Two moves are tried in turn:
+      1. **2-opt (single session)** — for each session, try the 6 permutations
+         of (1, 2, 3); keep the one that lowers the global spread.
+      2. **3-opt (pair of sessions)** — for each pair, try all 6×6 combinations
+         of permutations to escape minima where no single-session move helps.
+    """
+    perms = list(permutations([1, 2, 3]))
+
+    for _ in range(max_outer_iters):
+        improved = _two_opt_pass(sessions, table_counts, player_ids, perms)
+        if not improved:
+            # Try the more expensive pair-swap pass when single moves stop helping.
+            improved = _three_opt_pass(sessions, table_counts, player_ids, perms)
+            if not improved:
+                return
+
+
+def _two_opt_pass(
+    sessions: list[list[Match]],
+    table_counts: dict,
+    player_ids: list[int],
+    perms: list[tuple[int, ...]],
+) -> bool:
+    improved = False
+    for session in sessions:
+        if not session or len(session) < 2:
+            continue
+        current = [m.table_number for m in session]
+        if not all(t for t in current):
+            continue  # session has uninitialised tables — skip
+        base = _global_spread(table_counts, player_ids)
+        best_perm = current
+        best_score = base
+        for perm in perms:
+            target = list(perm)
+            if target == current:
+                continue
+            _apply_perm(session, current, target, table_counts, commit=False)
+            score = _global_spread(table_counts, player_ids)
+            _apply_perm(session, target, current, table_counts, commit=False)
+            if score < best_score:
+                best_score = score
+                best_perm = target
+        if best_perm != current:
+            _apply_perm(session, current, best_perm, table_counts, commit=True)
+            improved = True
+    return improved
+
+
+def _three_opt_pass(
+    sessions: list[list[Match]],
+    table_counts: dict,
+    player_ids: list[int],
+    perms: list[tuple[int, ...]],
+) -> bool:
+    improved = False
+    n = len(sessions)
+    for i in range(n):
+        s1 = sessions[i]
+        if not s1 or not all(m.table_number for m in s1):
+            continue
+        cur1 = [m.table_number for m in s1]
+        for j in range(i + 1, n):
+            s2 = sessions[j]
+            if not s2 or not all(m.table_number for m in s2):
+                continue
+            cur2 = [m.table_number for m in s2]
+            base = _global_spread(table_counts, player_ids)
+            best = (cur1, cur2)
+            best_score = base
+            for p1 in perms:
+                t1 = list(p1)
+                _apply_perm(s1, cur1, t1, table_counts, commit=False)
+                for p2 in perms:
+                    t2 = list(p2)
+                    if t1 == cur1 and t2 == cur2:
+                        continue
+                    _apply_perm(s2, cur2, t2, table_counts, commit=False)
+                    score = _global_spread(table_counts, player_ids)
+                    _apply_perm(s2, t2, cur2, table_counts, commit=False)
+                    if score < best_score:
+                        best_score = score
+                        best = (t1, t2)
+                _apply_perm(s1, t1, cur1, table_counts, commit=False)
+            if best != (cur1, cur2):
+                _apply_perm(s1, cur1, best[0], table_counts, commit=True)
+                _apply_perm(s2, cur2, best[1], table_counts, commit=True)
+                improved = True
+                # Move on — counts have shifted; let outer loop iterate.
+                return True
+    return improved
 
 
 def derive_match_result(set_scores: list[list[int]]) -> tuple[int, int, bool]:
@@ -241,8 +370,10 @@ def build_pool_rounds(pool_a: List[Player], pool_b: List[Player]) -> List[Match]
 def build_cross_rounds(pool_a_ranked: List[Player], pool_b_ranked: List[Player]) -> List[Match]:
     """Generate the 6 cross-pool rounds (rounds 6..11).
 
-    Round 11 (the final round) is guaranteed to pair players of the same pool rank:
-    A1-B1, A2-B2, ..., A6-B6.
+    Round 11 (the final round) is guaranteed to pair players of the same pool rank
+    (A1-B1, A2-B2, ..., A6-B6) and is emitted **in reverse rank order** so the
+    top-of-pool pairings (A1-B1, A2-B2, A3-B3) end up in the second batch of
+    three — i.e. they are played last on the tournament's three tables.
     Every Ai meets every Bj exactly once across the 6 rounds.
     """
     if len(pool_a_ranked) != 6 or len(pool_b_ranked) != 6:
@@ -252,7 +383,8 @@ def build_cross_rounds(pool_a_ranked: List[Player], pool_b_ranked: List[Player])
     for r in range(6):           # 0..5 -> rounds 6..11
         offset = 5 - r           # last round (r=5) -> offset 0 -> Ai vs Bi
         round_number = 6 + r
-        for i in range(6):
+        order = range(5, -1, -1) if round_number == 11 else range(6)
+        for i in order:
             j = (i + offset) % 6
             matches.append(Match(
                 id=0,

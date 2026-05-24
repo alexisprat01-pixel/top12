@@ -4,8 +4,8 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractScrollArea, QFrame, QHBoxLayout, QHeaderView, QLabel, QPushButton,
+    QScrollArea, QSizePolicy, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ..models import Match, Player, PlayerStanding
@@ -334,13 +334,10 @@ class RoundsPage(QWidget):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row, col, item)
         table.resizeColumnsToContents()
+        table.resizeRowsToContents()
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        # Lock the table to its natural height so it doesn't expose a scrollbar.
-        row_h = 40
-        for r in range(len(standings)):
-            table.setRowHeight(r, row_h)
-        header_h = table.horizontalHeader().sizeHint().height()
-        table.setFixedHeight(header_h + row_h * len(standings) + 4)
         table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        table.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         return table

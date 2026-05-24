@@ -4,8 +4,8 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QHBoxLayout, QHeaderView, QLabel, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget,
+    QAbstractScrollArea, QHBoxLayout, QHeaderView, QLabel, QSizePolicy,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from ..models import Match, Player, PlayerStanding
@@ -101,14 +101,13 @@ class GeneralRankingPage(QWidget):
                 if col != 1:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row, col, item)
+        # Let Qt size each row to fit its content (header + the 13pt name font)
+        # — gives a compact, natural height with no scrollbar.
         table.resizeColumnsToContents()
+        table.resizeRowsToContents()
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        # Take exactly the height needed — no scrolling inside a standings table.
-        row_h = 40
-        for r in range(len(standings)):
-            table.setRowHeight(r, row_h)
-        header_h = table.horizontalHeader().sizeHint().height()
-        table.setFixedHeight(header_h + row_h * len(standings) + 4)
         table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        table.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         return table

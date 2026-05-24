@@ -333,9 +333,14 @@ class RoundsPage(QWidget):
                 if col != 1:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row, col, item)
-        table.resizeColumnsToContents()
         table.resizeRowsToContents()
-        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header = table.horizontalHeader()
+        for col in range(table.columnCount()):
+            mode = (
+                QHeaderView.ResizeMode.Stretch if col == 1
+                else QHeaderView.ResizeMode.ResizeToContents
+            )
+            header.setSectionResizeMode(col, mode)
         table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)

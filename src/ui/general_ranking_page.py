@@ -103,9 +103,16 @@ class GeneralRankingPage(QWidget):
                 table.setItem(row, col, item)
         # Let Qt size each row to fit its content (header + the 13pt name font)
         # — gives a compact, natural height with no scrollbar.
-        table.resizeColumnsToContents()
         table.resizeRowsToContents()
-        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header = table.horizontalHeader()
+        # "Joueur" gets the remaining space; all other columns shrink to fit
+        # max(header label, content) so "Diff sets" header isn't cut off.
+        for col in range(table.columnCount()):
+            mode = (
+                QHeaderView.ResizeMode.Stretch if col == 1
+                else QHeaderView.ResizeMode.ResizeToContents
+            )
+            header.setSectionResizeMode(col, mode)
         table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)

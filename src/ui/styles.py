@@ -155,17 +155,27 @@ QCalendarWidget QAbstractItemView:enabled {{
 QCalendarWidget QAbstractItemView:disabled {{
     color: {GREY_LIGHT};
 }}
+/* Buttons in the calendar header — transparent so they blend with the
+   navigation bar instead of creating grey rectangles inside the bar. */
 QCalendarWidget QToolButton {{
-    background-color: {GREY_DARK};
+    background-color: transparent;
     color: {TEXT};
     border: none;
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 4px;
     font-weight: bold;
 }}
 QCalendarWidget QToolButton:hover {{
-    background-color: {GREY};
+    background-color: {GREY_DARK};
     color: {RED};
+}}
+/* Prev/next month — we replace the native icon with "‹" / "›" text in code,
+   here we just make sure the glyph is large and white. */
+QCalendarWidget QToolButton#qt_calendar_prevmonth,
+QCalendarWidget QToolButton#qt_calendar_nextmonth {{
+    color: {TEXT};
+    font-size: 16pt;
+    qproperty-iconSize: 0px 0px;
 }}
 QCalendarWidget QMenu {{
     background-color: {GREY_DARK};

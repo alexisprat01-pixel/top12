@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
     QPushButton, QVBoxLayout, QWidget,
@@ -137,20 +138,18 @@ class HomePage(QWidget):
         name.setStyleSheet("color: #F2F2F2; font-size: 12pt; font-weight: bold; background: transparent;")
         left.addWidget(name)
 
-        # The 📅 character belongs to the emoji block which the default Segoe UI
-        # does not render — we wrap it in a span using the Segoe UI Emoji font so it
-        # displays correctly on Windows.
-        meta_html = (
-            "<span style=\"color:#B4B4B8;\">"
-            "<span style=\"font-family:'Segoe UI Emoji','Segoe UI Symbol';\">📅</span>"
-            f"  {_fmt_date(t.event_date)}"
-            "    •    "
+        # The 📅 character lives in the emoji block which Segoe UI does not cover.
+        # Setting font families on the QLabel itself (rather than via inline HTML)
+        # makes Qt fall back to Segoe UI Emoji for the emoji character only.
+        meta = QLabel(
+            f"📅  {_fmt_date(t.event_date)}    •    "
             f"Mis à jour le {_fmt_date(t.updated_at.split(' ')[0])}"
-            "</span>"
         )
-        meta = QLabel(meta_html)
-        meta.setTextFormat(Qt.TextFormat.RichText)
-        meta.setStyleSheet("font-size: 9pt; background: transparent;")
+        meta_font = QFont()
+        meta_font.setFamilies(["Segoe UI", "Segoe UI Emoji", "Segoe UI Symbol"])
+        meta_font.setPointSize(9)
+        meta.setFont(meta_font)
+        meta.setStyleSheet("color: #B4B4B8; background: transparent;")
         left.addWidget(meta)
 
         if t.notes:

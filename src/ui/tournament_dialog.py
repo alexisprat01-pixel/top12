@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QDate, Qt
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QCheckBox, QDateEdit, QDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-    QMessageBox, QPushButton, QTextEdit, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QTextEdit, QToolButton, QVBoxLayout, QWidget,
 )
 
 from ..models import Tournament
@@ -64,6 +65,7 @@ class TournamentDialog(QDialog):
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDisplayFormat("dd/MM/yyyy")
         self.date_edit.setDate(QDate.currentDate())
+        self._restyle_calendar_arrows(self.date_edit)
         self.no_date_check = QCheckBox("Pas de date définie")
         self.no_date_check.toggled.connect(lambda checked: self.date_edit.setDisabled(checked))
 
@@ -101,6 +103,22 @@ class TournamentDialog(QDialog):
         btn_row.addWidget(cancel_btn)
         btn_row.addWidget(primary_btn)
         outer.addLayout(btn_row)
+
+    @staticmethod
+    def _restyle_calendar_arrows(date_edit: QDateEdit):
+        """Replace the native prev/next month icons (which we cannot recolour
+        via QSS) with white text glyphs that respect the rest of the theme."""
+        cal = date_edit.calendarWidget()
+        if cal is None:
+            return
+        for name, glyph in (
+            ("qt_calendar_prevmonth", "‹"),
+            ("qt_calendar_nextmonth", "›"),
+        ):
+            btn = cal.findChild(QToolButton, name)
+            if btn is not None:
+                btn.setIcon(QIcon())
+                btn.setText(glyph)
 
     @staticmethod
     def _field_label(text: str) -> QLabel:

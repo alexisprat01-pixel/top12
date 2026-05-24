@@ -58,6 +58,9 @@ class PlayerPage(QWidget):
 
             name = QLineEdit()
             name.setPlaceholderText("Nom Prénom")
+            # Bigger, slightly bolder typography — the player name is the most
+            # important info on this screen.
+            name.setStyleSheet("font-size: 13pt; font-weight: 600;")
             self.name_edits.append(name)
 
             points = QSpinBox()

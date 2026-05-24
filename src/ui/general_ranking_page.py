@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QHBoxLayout, QHeaderView, QLabel, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget,
@@ -83,6 +84,9 @@ class GeneralRankingPage(QWidget):
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # Larger, semi-bold typography for the player-name column — the most
+        # read piece of information on this page.
+        name_font = QFont("Segoe UI", 13, QFont.Weight.DemiBold)
         for row, st in enumerate(standings):
             items = [
                 QTableWidgetItem(str(row + 1)),
@@ -92,11 +96,14 @@ class GeneralRankingPage(QWidget):
                 QTableWidgetItem(str(st.points)),
                 QTableWidgetItem(f"{st.set_diff:+d}"),
             ]
+            items[1].setFont(name_font)
             for col, item in enumerate(items):
                 if col != 1:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row, col, item)
         table.resizeColumnsToContents()
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        table.setMinimumHeight(40 + 36 * len(standings))
+        # Row height bumped to absorb the larger name font without clipping.
+        table.verticalHeader().setDefaultSectionSize(40)
+        table.setMinimumHeight(40 + 40 * len(standings))
         return table

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QFrame, QHBoxLayout, QHeaderView, QLabel, QPushButton, QScrollArea,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
@@ -316,6 +317,8 @@ class RoundsPage(QWidget):
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # Bigger, semi-bold name column to match the general standings page.
+        name_font = QFont("Segoe UI", 13, QFont.Weight.DemiBold)
         for row, st in enumerate(standings):
             items = [
                 QTableWidgetItem(str(row + 1)),
@@ -325,11 +328,13 @@ class RoundsPage(QWidget):
                 QTableWidgetItem(str(st.points)),
                 QTableWidgetItem(f"{st.set_diff:+d}"),
             ]
+            items[1].setFont(name_font)
             for col, item in enumerate(items):
                 if col != 1:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 table.setItem(row, col, item)
         table.resizeColumnsToContents()
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        table.setMinimumHeight(40 + 36 * len(standings))
+        table.verticalHeader().setDefaultSectionSize(40)
+        table.setMinimumHeight(40 + 40 * len(standings))
         return table

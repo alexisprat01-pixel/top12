@@ -121,7 +121,7 @@ QPushButton#secondary:hover {{
     color: white;
 }}
 
-QLineEdit, QSpinBox {{
+QLineEdit, QSpinBox, QTextEdit, QDateEdit, QPlainTextEdit {{
     background-color: {GREY};
     color: {TEXT};
     border: 1px solid {GREY_LIGHT};
@@ -129,9 +129,79 @@ QLineEdit, QSpinBox {{
     padding: 8px 12px;
     min-height: 22px;
     selection-background-color: {RED};
+    selection-color: white;
 }}
-QLineEdit:focus, QSpinBox:focus {{
+QLineEdit:focus, QSpinBox:focus, QTextEdit:focus, QDateEdit:focus, QPlainTextEdit:focus {{
     border: 1px solid {RED};
+}}
+
+/* Date picker dropdown arrow + popup calendar */
+QDateEdit::drop-down {{
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 24px;
+    border-left: 1px solid {GREY_LIGHT};
+}}
+QCalendarWidget QWidget {{
+    background-color: {GREY_DARK};
+    color: {TEXT};
+}}
+QCalendarWidget QAbstractItemView:enabled {{
+    background-color: {GREY_DARK};
+    color: {TEXT};
+    selection-background-color: {RED};
+    selection-color: white;
+}}
+QCalendarWidget QAbstractItemView:disabled {{
+    color: {GREY_LIGHT};
+}}
+QCalendarWidget QToolButton {{
+    background-color: {GREY_DARK};
+    color: {TEXT};
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+}}
+QCalendarWidget QToolButton:hover {{
+    background-color: {GREY};
+    color: {RED};
+}}
+QCalendarWidget QMenu {{
+    background-color: {GREY_DARK};
+    color: {TEXT};
+}}
+QCalendarWidget QSpinBox {{
+    background-color: {GREY};
+    color: {TEXT};
+}}
+QCalendarWidget #qt_calendar_navigationbar {{
+    background-color: {GREY};
+}}
+
+/* Checkboxes — dark, with a red check mark when ticked */
+QCheckBox {{
+    color: {TEXT};
+    spacing: 8px;
+    background: transparent;
+}}
+QCheckBox::indicator {{
+    width: 18px;
+    height: 18px;
+    border: 1px solid {GREY_LIGHT};
+    border-radius: 4px;
+    background-color: {GREY};
+}}
+QCheckBox::indicator:hover {{
+    border-color: {RED};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {RED};
+    border-color: {RED};
+    image: none;
+}}
+QCheckBox:disabled {{
+    color: {TEXT_DIM};
 }}
 
 QLabel#h1 {{

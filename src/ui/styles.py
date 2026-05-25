@@ -246,7 +246,7 @@ QTableWidget {{
     selection-background-color: {RED_DARK};
 }}
 QTableWidget::item {{
-    background-color: {GREY};
+    background-color: transparent;
     color: {TEXT};
     padding: 6px;
 }}

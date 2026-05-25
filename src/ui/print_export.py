@@ -25,7 +25,8 @@ TABLE_COLORS = {1: "#C8102E", 2: "#1E88E5", 3: "#43A047"}
 COLS_PER_PAGE = 2
 ROWS_PER_PAGE = 10
 STRIPS_PER_PAGE = COLS_PER_PAGE * ROWS_PER_PAGE   # = 20
-PAGE_MARGIN_MM = 10
+PAGE_MARGIN_MM = 0   # full-bleed A4 — the printer driver enforces its own
+                     # physical un-printable area, no need to add more here.
 COL_GAP_MM = 4
 ROW_GAP_MM = 1.5
 TABLE_CHIP_W_MM = 8

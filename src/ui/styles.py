@@ -5,9 +5,26 @@ Rollback :
   - ``git revert <ce commit>`` revient à l'ancien thème
   - ou ``git checkout pre-editorial-theme`` pour explorer
 """
+import sys
+from pathlib import Path
+
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QColor, QPainter, QRadialGradient
 from PyQt6.QtWidgets import QWidget
+
+
+def _assets_dir() -> Path:
+    """Resolve the assets directory both in dev mode and inside a PyInstaller bundle."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        return Path(base) / "src" / "assets"
+    return Path(__file__).resolve().parent.parent / "assets"
+
+
+def _asset_url(name: str) -> str:
+    """Return a forward-slashed absolute URL suitable for use inside QSS."""
+    p = _assets_dir() / name
+    return p.as_posix()
 
 
 # ===== Palette V6 (Editorial / Hero) =====
@@ -147,12 +164,9 @@ QComboBox::drop-down {{
     border-bottom-right-radius: {INPUT_RADIUS}px;
 }}
 QComboBox::down-arrow {{
-    image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid {TEXT};
-    width: 0px;
-    height: 0px;
+    image: url({_asset_url("arrow-down.svg")});
+    width: 12px;
+    height: 8px;
     margin-right: 6px;
 }}
 QComboBox QAbstractItemView {{
@@ -173,8 +187,16 @@ QComboBox QAbstractItemView::item {{
 QDateEdit::drop-down {{
     subcontrol-origin: padding;
     subcontrol-position: top right;
-    width: 24px;
+    width: 28px;
     border-left: 1px solid {GREY_LIGHT};
+    border-top-right-radius: {INPUT_RADIUS}px;
+    border-bottom-right-radius: {INPUT_RADIUS}px;
+}}
+QDateEdit::down-arrow {{
+    image: url({_asset_url("calendar.svg")});
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
 }}
 QCalendarWidget QWidget {{
     background-color: {GREY_DARK};

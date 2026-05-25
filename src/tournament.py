@@ -415,8 +415,11 @@ def compute_standings(
     1. Match points DESC.
     2. If **exactly 2** players are tied on points: head-to-head winner first.
     3. If **3 or more** are tied: order by set differential (sets won − sets lost).
-       Within a sub-group still tied after the differential, fall back to rule 2
-       if the sub-group has 2 players; otherwise alphabetical.
+       Within a sub-group still tied after the differential:
+         - 2 players left → head-to-head.
+         - 3+ players left → point differential (small-points scored − conceded)
+           computed **only on the matches played between the tied players**.
+           If still 2 left after that → head-to-head; 3+ left → alphabetical.
     """
     by_id = {p.id: PlayerStanding(player=p) for p in players}
     if pool is not None:
@@ -488,9 +491,67 @@ def _break_points_tie(group: list, played_matches: list) -> list:
         elif len(subgroup) == 2:
             out.extend(_head_to_head_order(subgroup, played_matches))
         else:
-            out.extend(sorted(subgroup, key=lambda s: s.player.name.lower()))
+            out.extend(_break_by_inner_point_diff(subgroup, played_matches))
         i = j + 1
     return out
+
+
+def _break_by_inner_point_diff(group: list, played_matches: list) -> list:
+    """3+ players still tied after set differential.
+
+    Order them by *small-points* differential (sum of set point scores)
+    computed only on the matches played between the tied players themselves.
+    After this pass, recursively resolve any remaining ties:
+      - 2 left → head-to-head
+      - 3+ left → alphabetical (final fallback)
+    """
+    diffs = _inner_point_diffs(group, played_matches)
+    by_pts = sorted(group, key=lambda s: -diffs[s.player.id])
+    out: list = []
+    i = 0
+    while i < len(by_pts):
+        j = i
+        while (
+            j + 1 < len(by_pts)
+            and diffs[by_pts[j + 1].player.id] == diffs[by_pts[i].player.id]
+        ):
+            j += 1
+        sub = by_pts[i:j + 1]
+        if len(sub) == 1:
+            out.extend(sub)
+        elif len(sub) == 2:
+            out.extend(_head_to_head_order(sub, played_matches))
+        else:
+            out.extend(sorted(sub, key=lambda s: s.player.name.lower()))
+        i = j + 1
+    return out
+
+
+def _inner_point_diffs(group: list, played_matches: list) -> dict:
+    """For each player in ``group``, return (points_for − points_against)
+    on matches played against another member of the group.
+
+    Only counts set-by-set point scores (Match.set_scores). If a match has
+    no recorded set_scores (legacy data), it contributes 0 to both players.
+    """
+    ids = {s.player.id for s in group}
+    diffs: dict = {pid: 0 for pid in ids}
+    for m in played_matches:
+        if m.player1_id not in ids or m.player2_id not in ids:
+            continue
+        if not m.set_scores:
+            continue
+        for pair in m.set_scores:
+            if not isinstance(pair, (list, tuple)) or len(pair) < 2:
+                continue
+            try:
+                p1_pts = int(pair[0])
+                p2_pts = int(pair[1])
+            except (TypeError, ValueError):
+                continue
+            diffs[m.player1_id] += p1_pts - p2_pts
+            diffs[m.player2_id] += p2_pts - p1_pts
+    return diffs
 
 
 def _head_to_head_order(pair: list, played_matches: list) -> list:

@@ -73,8 +73,8 @@ class GeneralRankingPage(QWidget):
         self.subtitle.setText(
             f"{played_count} match{'s' if played_count > 1 else ''} joué"
             f"{'s' if played_count > 1 else ''} sur {total}. "
-            "Départage : 2 ex-aequo → face-à-face ; 3+ ex-aequo → diff sets ; "
-            "puis face-à-face entre 2 restants."
+            "Départage : 2 ex-aequo → face-à-face ; 3+ ex-aequo → diff sets, "
+            "puis diff points entre eux ; face-à-face s'il reste 2 joueurs."
         )
 
         standings = compute_standings(players, matches)

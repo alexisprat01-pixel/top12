@@ -52,7 +52,8 @@ La base SQLite est créée dans `%USERPROFILE%\.tournoi-ljtt\tournoi-ljtt.db`. S
 Départage :
 1. Si 2 joueurs sont à égalité → vainqueur du face‑à‑face passe devant.
 2. Si 3+ joueurs sont à égalité → différentiel de sets (sets gagnés − sets perdus).
-3. Si après ce départage il reste 2 joueurs à égalité → on revient au face‑à‑face.
+3. Si après ce départage il reste encore 3+ joueurs à égalité → différentiel de **points marqués** (points − encaissés) calculé **uniquement sur les matches joués entre les joueurs à égalité**.
+4. S'il reste 2 joueurs après l'une de ces étapes → on retombe sur le face‑à‑face.
 
 ## Distribution — TournoiLJTT.exe autonome
 
